@@ -1,0 +1,6 @@
+/TEMP
+*.hcl
+*.terraform
+*.lock.info
+*.tfstate
+*tfplan
