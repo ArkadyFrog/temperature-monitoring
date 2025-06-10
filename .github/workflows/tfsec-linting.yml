@@ -6,9 +6,11 @@
 name: Terraform Security Scan
 
 on:
+  workflow_dispatch:  # 👈 enables the "Run workflow" button in GitHub UI
   push:
     branches: [ "main" ]
     paths:
+      - '.workflows/tfsec-linting.yml'
       - 'terraform/**'
   pull_request:
     branches: [ "main" ]
