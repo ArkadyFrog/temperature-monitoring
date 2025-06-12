@@ -12,22 +12,6 @@ resource "azurerm_resource_group" "rg" {
   }
 }
 
-# Network Resources
-# resource "azurerm_virtual_network" "vnet" {
-#   name                = "vnet-app-temperature-exporter"
-#   address_space       = ["10.0.0.0/16"]
-#   location            = "westeurope"
-#   resource_group_name = azurerm_resource_group.rg.name
-# }
-
-# resource "azurerm_subnet" "subnet" {
-#   name                 = "subnet-default"
-#   resource_group_name  = azurerm_resource_group.rg.name
-#   virtual_network_name = azurerm_virtual_network.vnet.name
-#   address_prefixes     = ["10.0.1.0/24"]
-#   network_security_group_id = azurerm_network_security_group.subnet_nsg.id
-# }
-
 resource "azurerm_public_ip" "vm_ip" {
   name                = "vm-public-ip"
   location            = "westeurope"
@@ -86,17 +70,7 @@ resource "azurerm_network_security_group" "subnet_nsg" {
     destination_address_prefix = "*"
   }
 
-  # security_rule {
-  #   name                       = "AllowNodePorts"
-  #   priority                   = 110
-  #   direction                  = "Inbound"
-  #   access                     = "Allow"
-  #   protocol                   = "Tcp"
-  #   source_port_range          = "*"
-  #   destination_port_ranges    = [30000-32767] # NodePort range
-  #   source_address_prefix      = "*"
-  #   destination_address_prefix = "*"
-  # }
+  
 }
 
 # Key Vault Resources
@@ -110,39 +84,33 @@ resource "azurerm_key_vault" "ssh_vault" {
   purge_protection_enabled   = false
 
   access_policy {
-    tenant_id          = data.azurerm_client_config.current.tenant_id
-    object_id          = data.azurerm_client_config.current.object_id
-    secret_permissions = ["Set", "Get", "List", "Delete"]
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = data.azurerm_client_config.current.object_id
+    
+    secret_permissions = [
+      "Backup", "Delete", "Get", "List", "Purge", "Recover", "Restore", "Set"
+    ]
   }
 }
 
-# Check for existing secret using azapi
-data "azapi_resource" "existing_ssh_private" {
-  type      = "Microsoft.KeyVault/vaults/secrets@2021-10-01"
-  name      = "vm-ssh-private-key"
-  parent_id = azurerm_key_vault.ssh_vault.id
-
-  response_export_values = ["properties.value"]
-  lifecycle {
-    # ignore_errors = true
-  }
-}
-
-# Create secret only if it doesn't exist
+# Secret creation with proper error handling
 resource "azurerm_key_vault_secret" "vm_ssh_private" {
-  count = length(data.azapi_resource.existing_ssh_private.output) > 0 ? 0 : 1
-
   name         = "vm-ssh-private-key"
   value        = var.ssh_private_key
   key_vault_id = azurerm_key_vault.ssh_vault.id
   content_type = "text/plain"
+
+  lifecycle {
+    ignore_changes = [value] # Prevent updates to existing secrets
+  }
 }
 
-# VM Access Policy
+# VM Access Policy with minimal required permissions
 resource "azurerm_key_vault_access_policy" "vm_policy" {
-  key_vault_id       = azurerm_key_vault.ssh_vault.id
-  tenant_id          = data.azurerm_client_config.current.tenant_id
-  object_id          = azurerm_linux_virtual_machine.minikube_vm.identity[0].principal_id
+  key_vault_id = azurerm_key_vault.ssh_vault.id
+  tenant_id    = data.azurerm_client_config.current.tenant_id
+  object_id    = azurerm_linux_virtual_machine.minikube_vm.identity[0].principal_id
+  
   secret_permissions = ["Get"]
 }
 
@@ -181,15 +149,3 @@ resource "azurerm_linux_virtual_machine" "minikube_vm" {
 
   custom_data = filebase64("${path.module}/scripts/setup.sh")
 }
-
-# resource "azurerm_key_vault_access_policy" "vm_policy" {
-#   key_vault_id = azurerm_key_vault.ssh_vault.id
-#   tenant_id    = var.tenant_id
-#   object_id    = azurerm_linux_virtual_machine.minikube_vm.identity[0].principal_id
-
-#   secret_permissions = [
-#     "Get",
-#   ]
-# }
-
-# data "azurerm_client_config" "current" {}

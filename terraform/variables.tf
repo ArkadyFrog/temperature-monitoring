@@ -31,6 +31,12 @@ variable "openweathermap_api_key" {
   sensitive = true
 }
 
+variable "allow_secret_creation" {
+  description = "Whether to allow creation of new secrets if they don't exist"
+  type        = bool
+  default     = true
+}
+
 # variable "create_new_secret" {
 #   description = "Whether to create a new secret or use existing one"
 #   type        = bool
